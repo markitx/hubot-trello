@@ -12,6 +12,7 @@
 # Commands:
 #   hubot trello new "<list>" <name> - Create a new Trello card in the list
 #   hubot trello list "<list>" - Show cards on list
+#   hubot trello lists - Show all lists
 #   hubot trello move <shortLink> "<list>" - Move a card to a different list
 #
 #
@@ -66,14 +67,21 @@ moveCard = (msg, card_id, list_name) ->
       msg.reply "Sorry boss, I couldn't move that card after all." if err
       msg.reply "Yep, ok, I moved that card to #{list_name}." unless err
 
+
+getLists = (cb) ->
+  trello.get "/1/boards/#{process.env.HUBOT_TRELLO_BOARD}", (err, data) ->
+    console.log(err) if err?
+    board = data
+    trello.get "/1/boards/#{process.env.HUBOT_TRELLO_BOARD}/lists", (err, data) ->
+      console.log(err) if err?
+      for list in data
+        lists[list.name.toLowerCase()] = list
+        cb(err, board, data) if cb?
+
 module.exports = (robot) ->
   # fetch our board data when the script is loaded
   ensureConfig console.log
-  trello.get "/1/boards/#{process.env.HUBOT_TRELLO_BOARD}", (err, data) ->
-    board = data
-    trello.get "/1/boards/#{process.env.HUBOT_TRELLO_BOARD}/lists", (err, data) ->
-      for list in data
-        lists[list.name.toLowerCase()] = list
+  getLists()
 
   robot.respond /trello new ["'](.+)["']\s(.*)/i, (msg) ->
     ensureConfig msg.send
@@ -96,3 +104,8 @@ module.exports = (robot) ->
 
   robot.respond /trello move (\w+) ["'](.+)["']/i, (msg) ->
     moveCard msg, msg.match[1], msg.match[2]
+
+  robot.respond /trello lists/i, (msg) ->
+    getLists (err, board, lists) ->
+      msg.reply "Here are all the lists:" unless err or lists.length == 0
+      msg.send "* #{list.name}" for list in lists unless err?
